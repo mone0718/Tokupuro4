@@ -1,0 +1,8 @@
+% 特プロ TMS
+% 2023/01/13
+
+
+
+EMG = data(:,1);
+
+time = 0:1/fs:length(Force)/fs-1/fs;
