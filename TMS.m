@@ -3,28 +3,124 @@
 
 fs = 2000;
 
-data_filtered = data;
-[b50,a50] = butter(3,[49 51]/500,'stop');
-[b100,a100] = butter(3,[99 101]/500,'stop');
-[b150,a150] = butter(3,[149 151]/500,'stop');
-[b200,a200] = butter(3,[199 201]/500,'stop');
-[b250,a250] = butter(3,[249 251]/500,'stop');
-[b300,a300] = butter(3,[299 301]/500,'stop');
-[b350,a350] = butter(3,[349 351]/500,'stop');
-[b400,a400] = butter(3,[399 401]/500,'stop');
-[b450,a450] = butter(3,[449 451]/500,'stop');
-data_filtered = filtfilt(b50,a50,data_filtered);
-data_filtered = filtfilt(b100,a100,data_filtered);
-data_filtered = filtfilt(b150,a150,data_filtered);
-data_filtered = filtfilt(b200,a200,data_filtered);
-data_filtered = filtfilt(b250,a250,data_filtered);
-data_filtered = filtfilt(b300,a300,data_filtered);
-data_filtered = filtfilt(b350,a350,data_filtered);
-data_filtered = filtfilt(b400,a400,data_filtered);
-data_filtered = filtfilt(b450,a450,data_filtered);
+%.txtのデータ読み取り
+fileID = fopen('data/yokota.txt','r');
+textscan(fileID,'%s',5,'Delimiter','\n');
+txt_data = textscan(fileID,'%f %f','Delimiter','\t');
+fclose(fileID);
 
-EMG = data_filtered(:,2) * 1000;
+txt_to_mat = cell2mat(txt_data);
+txt_time = txt_to_mat(:,1);
+EMG = txt_to_mat(:,2);
 
-time = 0:1/fs:length(EMG)/fs-1/fs;
 
-plot(time,EMG,'LineWidth',1.5);
+%.matのデータ読み取り
+load('data/yokota.mat');
+
+% EMG_filtered = EMG;
+% a = zeros(19,7);
+% b = zeros(19,7);
+% for i = 1:19
+%     [b(i,:),a(i,:)] = butter(3,[i*50-1 i*50+1]/1000,'stop');
+%     EMG_filtered = filtfilt(b(i,:),a(i,:),EMG_filtered);
+% end
+
+
+% 初項, インクリメントの値, 最終項
+% 0, 1/2000ごと, ??
+%stim_time = 0 : 1/fs : length(stim_onset)/fs-1/fs;
+
+stim_onset = data(:,1);
+
+EMG = EMG(1:length(stim_onset));
+time = txt_time(1:length(stim_onset));
+
+%生データ
+subplot(2,1,1);
+plot(time,EMG);
+ylabel('EMG (\muV)','FontName','Arial','Fontsize',12);
+xlabel('time (s)','FontName','Arial','Fontsize',12);
+
+subplot(2,1,2);
+plot(time,stim_onset);
+ylabel('stim','FontName','Arial','Fontsize',12);
+xlabel('time (s)','FontName','Arial','Fontsize',12);
+
+uiwait;
+
+count = 0;
+add_y = zeros(600,10);
+add_amp = zeros(1,13);
+x = time(1 : 600);
+
+figure('Position',[1 1 1500 700]);
+
+for i = 2:length(stim_onset)
+    if stim_onset(i) - stim_onset(i-1) > 4
+        for j = 1:13
+            if ((j-1)*10+1 <= count && count <= j*10)
+                
+                y = EMG(i-299 : i+300);
+    
+                if(mod(count,10) == 0) 
+                    t = 10;
+                else
+                    t = mod(count,10);
+                end
+                add_y(:,t) = y(:,1);
+    
+                mean_y = mean(add_y,2);
+                amp = max(mean_y) - min(mean_y);
+
+                add_amp(j) = amp; 
+    
+               
+                subplot(3,5,j);
+                hold on;
+                plot(x,y,'LineWidth',1,'Color',[0.7,0.7,0.7]);
+                hold off;
+    
+                hold on;
+                plot(x,mean_y,'LineWidth',1.2,'Color',[1,0.1,0.5]);
+                hold off;
+    
+                s = sprintf('stim = %d%% , amp = %2.0f', j*5+35, amp);
+                title(s);
+                ylim([-500,500]);
+                ylabel('EMG (\muV)');
+                xlabel('time (s)');
+
+            end                  
+        end
+     
+        count = count + 1;
+
+    end
+end
+
+uiwait;
+
+per_stim = 40:5:100;
+
+amp_x = per_stim';
+amp_y = add_amp';
+n = linspace(1000,1000,13)';
+
+b = glmfit(amp_x,[amp_y n],'binomial','Link','probit');
+
+amp_val = glmval(b,amp_x,'probit','Size',n);
+
+hold on;
+plot(amp_x,amp_val,'-', 'Color','[0.6 0.6 0.6]', 'LineWidth', 2);
+hold off;
+
+hold on;
+plot(amp_x,amp_y,'k.','MarkerSize',30);
+hold off;
+
+ylabel('Amplitude (\muV)');
+xlabel('Stimulus Level (%)');
+
+fontsize = 15;
+h = gca;
+set(h,'fontsize',fontsize);
